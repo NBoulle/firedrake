@@ -8,11 +8,9 @@ on:
   pull_request:
   schedule:
     - cron: '0 0 * * 0'
-
 jobs:
   build:
     name: "Build Firedrake"
-    if : false
     # The type of runner that the job will run on
     runs-on: self-hosted
     # The docker container to use.
@@ -73,7 +71,6 @@ jobs:
           rm -rf build
   docker_env:
     name: "Build Docker environment container"
-    # The type of runner that the job will run on
     needs: build
     if: ${{ github.ref == 'refs/heads/master' }}
     runs-on: self-hosted
@@ -96,12 +93,10 @@ jobs:
           tags: firedrakeproject/firedrake-env:latest
   docker_vanilla:
     name: "Build Docker vanilla container"
-    # The type of runner that the job will run on
     needs: docker_env
     runs-on: self-hosted
     env:
       PETSC_CONFIGURE_OPTIONS: --with-make-np=12 --download-mpich-device=ch3:sock
-
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -123,12 +118,10 @@ jobs:
           tags: firedrakeproject/firedrake-vanilla:latest
   docker_firedrake:
     name: "Build full Firedrake Docker container"
-    # The type of runner that the job will run on
     needs: docker_vanilla
     runs-on: self-hosted
     env:
       PETSC_CONFIGURE_OPTIONS: --with-make-np=12 --download-mpich-device=ch3:sock
-
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -150,10 +143,8 @@ jobs:
           tags: firedrakeproject/firedrake:latest
   docker_jupyter:
     name: "Build tutorial notebooks Docker container"
-    # The type of runner that the job will run on
     needs: docker_firedrake
     runs-on: self-hosted
-
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -180,7 +171,6 @@ jobs:
     runs-on: self-hosted
     env:
       PETSC_CONFIGURE_OPTIONS: --with-make-np=12 --download-mpich-device=ch3:sock
-
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -203,6 +193,7 @@ jobs:
   docker_spack:
     name: "Build Docker Spack environment container"
     # The type of runner that the job will run on
+    needs: build
     if: ${{ github.head_ref == 'JDBetteridge/spack_changes' }}
     runs-on: self-hosted
     steps:
@@ -220,8 +211,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          file: docker/Dockerfile.spack
-          tags: firedrakeproject/firedrake-test:latest
+          file: docker/Dockerfile.spack-env
+          tags: firedrakeproject/firedrake-spack-env:latest
   docker_firedrake_spack:
     name: "Spack install Firedrake inside container"
     # The type of runner that the job will run on
@@ -242,5 +233,5 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: false
-          file: docker/Dockerfile.firedrake-spack
+          file: docker/Dockerfile.spack-firedrake
           tags: firedrakeproject/firedrake-spack:latest
