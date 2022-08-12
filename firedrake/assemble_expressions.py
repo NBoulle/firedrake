@@ -2,7 +2,7 @@ import itertools
 import os
 import tempfile
 import weakref
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from functools import singledispatch
 
 import gem
@@ -20,7 +20,7 @@ from tsfc.loopy import generate
 from tsfc.ufl_utils import ufl_reuse_if_untouched
 from ufl.algorithms.apply_algebra_lowering import LowerCompoundAlgebra
 from ufl.classes import (Coefficient, ComponentTensor, Expr,
-                         Index, Indexed, MultiIndex, Terminal)
+                         Indexed, MultiIndex, Terminal)
 from ufl.corealg.map_dag import map_expr_dags
 from ufl.corealg.multifunction import MultiFunction
 from ufl.corealg.traversal import unique_pre_traversal as ufl_traversal
@@ -108,22 +108,6 @@ class Translator(MultiFunction, ufl2gem.Mixin):
             return var
 
 
-class IndexRelabeller(MultiFunction):
-    def __init__(self):
-        super().__init__()
-        self._reset()
-
-    def _reset(self):
-        count = itertools.count()
-        self.index_cache = defaultdict(lambda: Index(next(count)))
-
-    expr = MultiFunction.reuse_if_untouched
-
-    def multi_index(self, o):
-        return type(o)(tuple(self.index_cache[i] if isinstance(i, Index) else i
-                             for i in o.indices()))
-
-
 def flatten(shape):
     if shape == ():
         return shape
@@ -208,7 +192,6 @@ def _split_indexed(o, self, inct):
 
 class Assign(object):
     """Representation of a pointwise assignment expression."""
-    relabeller = IndexRelabeller()
     symbol = "="
 
     __slots__ = ("lvalue", "rvalue", "__dict__", "__weakref__")
@@ -311,10 +294,9 @@ class Assign(object):
 
     @cached_property
     def slow_key(self):
-        """A slow lookup key for this expression (relabelling UFL indices)."""
-        self.relabeller._reset()
-        rvalue, = map_expr_dags(self.relabeller, [self.rvalue])
-        return (type(self), hash(self.lvalue), hash(rvalue))
+        """A slow lookup key for this expression."""
+        from firedrake.interpolation import hash_expr
+        return (type(self), hash(self.lvalue), hash_expr(self.rvalue))
 
     @cached_property
     def par_loop_args(self):
@@ -424,6 +406,10 @@ except KeyError:
 """Storage location for the kernel cache."""
 
 
+_pointwise_expression_cache = {}
+"""In-memory cache for pointwise expression kernels."""
+
+
 def _pointwise_expression_key(exprs, scalar_type, is_logging):
     """Return a cache key for use with :func:`pointwise_expression_kernel`."""
     # Since this cache is collective this function must return a 2-tuple of
@@ -434,7 +420,7 @@ def _pointwise_expression_key(exprs, scalar_type, is_logging):
 
 
 @PETSc.Log.EventDecorator()
-@disk_cached({}, _cachedir, key=_pointwise_expression_key, collective=True)
+@disk_cached(_pointwise_expression_cache, _cachedir, key=_pointwise_expression_key, collective=True)
 def pointwise_expression_kernel(exprs, scalar_type, is_logging):
     """Compile a kernel for pointwise expressions.
 

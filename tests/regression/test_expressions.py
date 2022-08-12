@@ -483,8 +483,15 @@ def test_expression_cache():
 
     assert len(u._expression_cache) == 3
 
+    # This will add 2 entries to the expression cache, one for the
+    # fast key and one for the slow key
     u.assign(as_vector([1, 2]))
+    assert len(u._expression_cache) == 5
+
+    # This should be a cache hit
     u.assign(as_vector(2*u[i], i))
+    assert len(u._expression_cache) == 5
+
     v.assign(as_vector(2*u[j], j))
     w.assign(as_tensor([[1, 2], [0, 3]]))
     w.assign(as_tensor(w[i, j]+w[j, i], (i, j)))
@@ -496,7 +503,7 @@ def test_expression_cache():
     w -= as_tensor([[2, 2], [2, 6]])
     assert w.dat.norm < 1e-15
 
-    assert len(u._expression_cache) == 5
+    assert len(u._expression_cache) == 7
 
 
 def test_augmented_assignment_broadcast():
