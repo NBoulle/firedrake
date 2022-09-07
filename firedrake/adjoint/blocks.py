@@ -253,7 +253,7 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
         replace_map[self.func] = self.get_outputs()[0].saved_output
         dFdu = replace(dFdu, replace_map)
         
-        print("Time prepare tlm = %.2e s" % (time.time() - time_prepare))
+        print("Prepare tlm = %.2e s" % (time.time() - time_prepare))
         
         return {
             "form": F_form,
@@ -261,6 +261,9 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
         }
 
     def evaluate_tlm_component(self, inputs, tlm_inputs, block_variable, idx, prepared=None):
+        import time
+        time_1 = time.time()
+        
         F_form = prepared["form"]
         dFdu = prepared["dFdu"]
         V = self.get_outputs()[idx].output.function_space()
@@ -302,11 +305,8 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
                 dFdm_i = firedrake.adjoint(dFdm_i, derivatives_expanded=True)
                 self._dFdm_cache[c] = dFdm_i
                         
-            import time
-            time_1 = time.time()
             dFdm_i = firedrake.adjoint(dFdm_i, derivatives_expanded=True)
             dFdm_i = firedrake.action(dFdm_i, tlm_value, derivatives_expanded=True)
-            print("time = %.2e" %(time.time()-time_1))            
             
             # Replace the form coefficients with checkpointed values.
             replace_map = self._replace_map(dFdm_i)
@@ -322,8 +322,17 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
         #dFdm = ufl.algorithms.expand_derivatives(dFdm)
         dFdm = self.compat.assemble_adjoint_value(dFdm)
         dudm = self.backend.Function(V)
-        return self._assemble_and_solve_tlm_eq(
+        
+        print("Evaluate tlm component = %.2e s" %(time.time()-time_1))
+        
+        time_1 = time.time()
+        
+        assemble_eq = self._assemble_and_solve_tlm_eq(
             self.compat.assemble_adjoint_value(dFdu, bcs=bcs, **self.assemble_kwargs), dFdm, dudm, bcs)
+        
+        print("Assemble and solve tlm eq = %.2e s" %(time.time()-time_1))
+        
+        return assemble_eq
 
 
 class ProjectBlock(SolveVarFormBlock):
