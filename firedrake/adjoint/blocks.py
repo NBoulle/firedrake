@@ -237,18 +237,24 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
         return dFdm
     
     def prepare_evaluate_tlm(self, inputs, tlm_inputs, relevant_outputs):
-
+        
+        import time
+        time_prepare = time.time()
+        
         F_form = self._create_F_form()
 
         # Take adjoint of adjoint to obtain dFdu
         dFdu_form = self.adj_F
+        
         dFdu = firedrake.adjoint(dFdu_form)
         
         # Replace the form coefficients with checkpointed values.
         replace_map = self._replace_map(dFdu)
         replace_map[self.func] = self.get_outputs()[0].saved_output
         dFdu = replace(dFdu, replace_map)
-                
+        
+        print("Time prepare tlm = %.2e s" % (time.time() - time_prepare))
+        
         return {
             "form": F_form,
             "dFdu": dFdu
@@ -295,7 +301,7 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
                 dFdm_i = ufl.algorithms.expand_derivatives(dFdm_i)
                 dFdm_i = firedrake.adjoint(dFdm_i, derivatives_expanded=True)
                 self._dFdm_cache[c] = dFdm_i
-            
+                        
             import time
             time_1 = time.time()
             dFdm_i = firedrake.adjoint(dFdm_i, derivatives_expanded=True)
