@@ -304,9 +304,11 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
                 dFdm_i = ufl.algorithms.expand_derivatives(dFdm_i)
                 dFdm_i = firedrake.adjoint(dFdm_i, derivatives_expanded=True)
                 self._dFdm_cache[c] = dFdm_i
-                        
+            
+            time_adj = time.time()
             dFdm_i = firedrake.adjoint(dFdm_i, derivatives_expanded=True)
             dFdm_i = firedrake.action(dFdm_i, tlm_value, derivatives_expanded=True)
+            print("   time adjoint/action = %.2e s" %(time.time() - time_adj))
             
             # Replace the form coefficients with checkpointed values.
             replace_map = self._replace_map(dFdm_i)
@@ -326,11 +328,12 @@ class NonlinearVariationalSolveBlock(GenericSolveBlock):
         print("Evaluate tlm component = %.2e s" %(time.time()-time_1))
         
         time_1 = time.time()
+        ass_adj_val = self.compat.assemble_adjoint_value(dFdu, bcs=bcs, **self.assemble_kwargs)
+        print("Assemble adjoint value = %.2e s" %(time.time()-time_1))
         
-        assemble_eq = self._assemble_and_solve_tlm_eq(
-            self.compat.assemble_adjoint_value(dFdu, bcs=bcs, **self.assemble_kwargs), dFdm, dudm, bcs)
-        
-        print("Assemble and solve tlm eq = %.2e s" %(time.time()-time_1))
+        time_1 = time.time()
+        assemble_eq = self._assemble_and_solve_tlm_eq(ass_adj_val, dFdm, dudm, bcs)
+        print("Solve tlm eq = %.2e s" %(time.time()-time_1))
         
         return assemble_eq
 
